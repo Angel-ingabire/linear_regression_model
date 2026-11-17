@@ -1,0 +1,404 @@
+import 'package:flutter/material.dart';
+
+class PredictionScreen extends StatefulWidget {
+  const PredictionScreen({super.key});
+
+  @override
+  State<PredictionScreen> createState() => _PredictionScreenState();
+}
+
+class _PredictionScreenState extends State<PredictionScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  final _yearController = TextEditingController();
+  final _populationController = TextEditingController();
+  final _populationGrowthController = TextEditingController();
+  final _secondaryEnrollmentController = TextEditingController();
+  final _pupilTeacherRatioController = TextEditingController();
+  final _gdpController = TextEditingController();
+  final _educationDurationController = TextEditingController();
+  final _agePopulationController = TextEditingController();
+
+  String? _countryCode;
+  String? _region;
+  String? _incomeGroup;
+
+  String? _resultMessage;
+
+  static const List<String> _countryCodes = [
+    'AGO',
+    'BDI',
+    'BEN',
+    'BFA',
+    'BWA',
+    'CAF',
+    'CIV',
+    'CMR',
+    'COD',
+    'COG',
+    'COM',
+    'CPV',
+    'DJI',
+    'DZA',
+    'EGY',
+    'ERI',
+    'ETH',
+    'GAB',
+    'GHA',
+    'GIN',
+    'GMB',
+    'GNB',
+    'GNQ',
+    'KEN',
+    'LBR',
+    'LSO',
+    'MAR',
+    'MDG',
+    'MLI',
+    'MOZ',
+    'MRT',
+    'MUS',
+    'MWI',
+    'NAM',
+    'NER',
+    'NGA',
+    'RWA',
+    'SEN',
+    'SLE',
+    'STP',
+    'SWZ',
+    'SYC',
+    'TCD',
+    'TGO',
+    'TUN',
+    'TZA',
+    'UGA',
+    'ZAF',
+    'ZMB',
+    'ZWE',
+  ];
+
+  static const List<String> _regions = [
+    'Middle East & North Africa',
+    'Sub-Saharan Africa',
+  ];
+
+  static const List<String> _incomeGroups = [
+    'High income: nonOECD',
+    'Low income',
+    'Lower middle income',
+    'Upper middle income',
+  ];
+
+  @override
+  void dispose() {
+    _yearController.dispose();
+    _populationController.dispose();
+    _populationGrowthController.dispose();
+    _secondaryEnrollmentController.dispose();
+    _pupilTeacherRatioController.dispose();
+    _gdpController.dispose();
+    _educationDurationController.dispose();
+    _agePopulationController.dispose();
+    super.dispose();
+  }
+
+  Widget _numericField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    bool integer = false,
+    double? min,
+    double? max,
+    bool strictlyPositive = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: TextInputType.numberWithOptions(
+          decimal: !integer,
+          signed: true,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: const Icon(Icons.edit_outlined),
+        ),
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Please enter $label';
+          }
+
+          final number = double.tryParse(value.trim());
+
+          if (number == null || !number.isFinite) {
+            return 'Enter a valid number';
+          }
+
+          if (integer && number != number.truncateToDouble()) {
+            return 'Enter a whole number';
+          }
+
+          if (strictlyPositive && number <= 0) {
+            return 'Value must be greater than zero';
+          }
+
+          if (min != null && number < min) {
+            return 'Minimum allowed value is $min';
+          }
+
+          if (max != null && number > max) {
+            return 'Maximum allowed value is $max';
+          }
+
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _dropdownField({
+    required String label,
+    required String? value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.arrow_drop_down_circle_outlined),
+        ),
+        items: options.map((option) {
+          return DropdownMenuItem<String>(
+            value: option,
+            child: Text(option, overflow: TextOverflow.ellipsis),
+          );
+        }).toList(),
+        onChanged: onChanged,
+        validator: (selected) {
+          if (selected == null) {
+            return 'Please select $label';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  void _validateInputs() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final input = <String, dynamic>{
+      'year': int.parse(_yearController.text.trim()),
+      'population': double.parse(_populationController.text.trim()),
+      'population_growth': double.parse(
+        _populationGrowthController.text.trim(),
+      ),
+      'secondary_enrollment': double.parse(
+        _secondaryEnrollmentController.text.trim(),
+      ),
+      'pupil_teacher_ratio': double.parse(
+        _pupilTeacherRatioController.text.trim(),
+      ),
+      'gdp_per_capita': double.parse(_gdpController.text.trim()),
+      'primary_education_duration': int.parse(
+        _educationDurationController.text.trim(),
+      ),
+      'population_age_0_14': double.parse(_agePopulationController.text.trim()),
+      'country_code': _countryCode!,
+      'region': _region!,
+      'income_group': _incomeGroup!,
+    };
+
+    setState(() {
+      _resultMessage =
+          'All inputs are valid. Ready to send ${input.length} features '
+          'to the prediction API.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'School Enrollment Predictor',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(
+                  Icons.school_outlined,
+                  size: 56,
+                  color: Colors.indigo,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'African Primary School Enrollment Prediction',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Enter demographic, education, and economic data '
+                  'to estimate gross primary school enrollment.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+
+                const Text(
+                  'Demographic Information',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 14),
+
+                _numericField(
+                  label: 'Year',
+                  controller: _yearController,
+                  hint: 'Example: 2010',
+                  integer: true,
+                  min: 1970,
+                  max: 2016,
+                ),
+                _numericField(
+                  label: 'Population',
+                  controller: _populationController,
+                  hint: 'Example: 10000000',
+                  strictlyPositive: true,
+                ),
+                _numericField(
+                  label: 'Population Growth (%)',
+                  controller: _populationGrowthController,
+                  hint: 'Example: 2.5',
+                  min: -10,
+                  max: 10,
+                ),
+                _numericField(
+                  label: 'Population Ages 0–14 (%)',
+                  controller: _agePopulationController,
+                  hint: 'Example: 42.0',
+                  min: 0,
+                  max: 100,
+                ),
+
+                const SizedBox(height: 12),
+                const Text(
+                  'Education Information',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 14),
+
+                _numericField(
+                  label: 'Secondary Enrollment (%)',
+                  controller: _secondaryEnrollmentController,
+                  hint: 'Example: 35.0',
+                  min: 0,
+                  max: 200,
+                ),
+                _numericField(
+                  label: 'Pupil–Teacher Ratio',
+                  controller: _pupilTeacherRatioController,
+                  hint: 'Example: 40.0',
+                  strictlyPositive: true,
+                ),
+                _numericField(
+                  label: 'Primary Education Duration (Years)',
+                  controller: _educationDurationController,
+                  hint: 'Example: 6',
+                  integer: true,
+                  min: 4,
+                  max: 7,
+                ),
+
+                const SizedBox(height: 12),
+                const Text(
+                  'Economic Information',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 14),
+
+                _numericField(
+                  label: 'GDP Per Capita',
+                  controller: _gdpController,
+                  hint: 'Example: 800.0',
+                  strictlyPositive: true,
+                ),
+
+                const SizedBox(height: 12),
+                const Text(
+                  'Country Information',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 14),
+
+                _dropdownField(
+                  label: 'Country Code',
+                  value: _countryCode,
+                  options: _countryCodes,
+                  onChanged: (value) {
+                    setState(() => _countryCode = value);
+                  },
+                ),
+                _dropdownField(
+                  label: 'Region',
+                  value: _region,
+                  options: _regions,
+                  onChanged: (value) {
+                    setState(() => _region = value);
+                  },
+                ),
+                _dropdownField(
+                  label: 'Income Group',
+                  value: _incomeGroup,
+                  options: _incomeGroups,
+                  onChanged: (value) {
+                    setState(() => _incomeGroup = value);
+                  },
+                ),
+
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _validateInputs,
+                  icon: const Icon(Icons.analytics_outlined),
+                  label: const Text('Predict Enrollment'),
+                ),
+
+                if (_resultMessage != null) ...[
+                  const SizedBox(height: 24),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(_resultMessage!, textAlign: TextAlign.center),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+                const Text(
+                  'Predictions are estimates based on historical '
+                  'African education data (1970–2016).',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
