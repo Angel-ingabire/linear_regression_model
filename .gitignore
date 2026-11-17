@@ -31,3 +31,7 @@ build/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local model backups and retraining test files
+**/best_model_backup.pkl
+**/retrain_test.csv
