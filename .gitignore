@@ -1,0 +1,33 @@
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Large raw datasets
+datasets/EdStatsData.csv
+datasets/EdStatsCountry.csv
+datasets/EdStatsSeries.csv
+
+# Flutter build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+**/android/local.properties
+**/android/key.properties
+*.jks
+*.keystore
+
+# Editor and system files
+.vscode/
+.DS_Store
+Thumbs.db
