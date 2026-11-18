@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
+
 class PredictionScreen extends StatefulWidget {
-  const PredictionScreen({super.key});
+  final ApiService? apiService;
+
+  const PredictionScreen({super.key, this.apiService});
 
   @override
   State<PredictionScreen> createState() => _PredictionScreenState();
@@ -20,6 +24,11 @@ class _PredictionScreenState extends State<PredictionScreen> {
 
   int _currentStep = 0;
   String? _message;
+  bool _isLoading = false;
+  double? _predictionResult;
+  String? _errorMessage;
+
+  late final ApiService _apiService;
 
   final _year = TextEditingController();
   final _population = TextEditingController();
@@ -138,12 +147,20 @@ class _PredictionScreenState extends State<PredictionScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _apiService = widget.apiService ?? ApiService();
+  }
+
   void _goToStep(int step) {
     FocusScope.of(context).unfocus();
 
     setState(() {
       _currentStep = step;
       _message = null;
+      _predictionResult = null;
+      _errorMessage = null;
     });
 
     if (_scrollController.hasClients) {
@@ -171,7 +188,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
     }
   }
 
-  void _predict() {
+  Future<void> _predict() async {
     final data = <String, dynamic>{
       'year': int.parse(_year.text.trim()),
       'population': double.parse(_population.text.trim()),
@@ -187,10 +204,36 @@ class _PredictionScreenState extends State<PredictionScreen> {
     };
 
     setState(() {
-      _message =
-          '${data.length} inputs validated successfully. '
-          'Ready to connect to the prediction API.';
+      _isLoading = true;
+      _predictionResult = null;
+      _errorMessage = null;
+      _message = null;
     });
+
+    try {
+      final prediction = await _apiService.predictEnrollment(data);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _predictionResult = prediction;
+        });
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage =
+              'An unexpected error occurred while contacting the prediction service.';
+        });
+      }
+    }
   }
 
   Widget _header() {
@@ -657,6 +700,8 @@ class _PredictionScreenState extends State<PredictionScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 16),
+            _resultDisplay(),
           ],
         );
     }
@@ -733,6 +778,124 @@ class _PredictionScreenState extends State<PredictionScreen> {
     );
   }
 
+  Widget _resultDisplay() {
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F6FC),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(Color(0xFF4361EE)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Predicting enrollment rate...',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_predictionResult != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE4F6F0),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.insights_rounded,
+                  color: Color(0xFF087B56),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: const Text(
+                    'Predicted Primary School Enrollment Rate',
+                    style: TextStyle(
+                      color: Color(0xFF087B56),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${_predictionResult!.toStringAsFixed(2)}%',
+              style: const TextStyle(
+                color: Color(0xFF087B56),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Predicted gross enrollment rate. Can exceed 100% due to '
+              'over-age or under-age enrollment.',
+              style: TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDECEA),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: Color(0xFFDC2626),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _errorMessage!,
+                style: const TextStyle(
+                  color: Color(0xFFDC2626),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   Widget _bottomNavigation() {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
@@ -767,12 +930,23 @@ class _PredictionScreenState extends State<PredictionScreen> {
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                onPressed: _next,
-                icon: Icon(
-                  _currentStep == 3 ? Icons.auto_awesome : Icons.arrow_forward,
-                ),
+                onPressed: _isLoading ? null : _next,
+                icon: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : Icon(
+                        _currentStep == 3 ? Icons.auto_awesome : Icons.arrow_forward,
+                      ),
                 label: Text(
-                  _currentStep == 3 ? 'Predict Enrollment' : 'Continue',
+                  _isLoading
+                      ? 'Predicting...'
+                      : (_currentStep == 3 ? 'Predict Enrollment' : 'Continue'),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: stepColors[_currentStep],
