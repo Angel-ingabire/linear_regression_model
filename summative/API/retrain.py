@@ -27,7 +27,6 @@ from app_state import (
     get_model,
     get_model_path,
     get_training_data_path,
-    model_lock,
     retrain_lock,
     set_model,
 )
@@ -289,9 +288,10 @@ async def retrain_model(
             model_path,
         )
 
-        # Safely replace the in-memory model reference
-        with model_lock:
-            set_model(updated_model)
+        # Safely replace the in-memory model reference. ``set_model``
+        # acquires ``model_lock`` itself and holds it only for the
+        # assignment, so prediction requests pause for microseconds.
+        set_model(updated_model)
 
         return {
             "message": "Model retrained successfully",

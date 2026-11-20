@@ -35,3 +35,16 @@ Thumbs.db
 # Local model backups and retraining test files
 **/best_model_backup.pkl
 **/retrain_test.csv
+
+# Temporary audit/debug scripts
+*.tmp_*.py
+*.tmp_*.ps1
+
+# Flutter screen backups
+**/prediction_screen_backup.txt
+
+# Test output artifacts
+uv_test_out.txt
+
+# Kilo tool configuration
+.kilo/

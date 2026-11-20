@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app_state import PredictionInput, get_model
+from retrain import router as retrain_router
 
 
 # --------------------------------------------------
@@ -72,11 +73,8 @@ def predict_enrollment(data: PredictionInput):
 # --------------------------------------------------
 # 3. Register the retraining router
 # --------------------------------------------------
-# This import is placed at the end of the file so that app_state
-# (which retrain.py depends on) is fully initialized first.
-# No circular imports: prediction.py and retrain.py both import
-# only from app_state.py; they never import from each other.
+# Import graph: prediction -> retrain -> app_state.
+# retrain.py never imports prediction.py, and both endpoint modules
+# take their shared state from app_state.py, so there is no cycle.
 
-from retrain import router as _retrain_router  # noqa: E402
-
-app.include_router(_retrain_router)
+app.include_router(retrain_router)

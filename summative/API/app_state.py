@@ -1,4 +1,5 @@
 
+import os
 from pathlib import Path
 from threading import Lock
 
@@ -99,12 +100,51 @@ class PredictionInput(BaseModel):
 # --------------------------------------------------
 # 3. File paths and saved model
 # --------------------------------------------------
+# Production defaults point at the files that ship with the API.
+#
+# The two optional environment variables below let an isolated test
+# process redirect the model and training data to temporary copies
+# BEFORE this module is imported. Because the paths are resolved at
+# import time, the in-memory model is loaded from the redirected file
+# and every later write targets that same redirected path - no
+# post-import monkeypatching is required or relied upon.
+#
+# When the variables are unset, behaviour is identical to before.
 
 API_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = API_DIR / "best_model.pkl"
+MODEL_PATH_ENV_VAR = "APP_MODEL_PATH"
+TRAINING_DATA_PATH_ENV_VAR = "APP_TRAINING_DATA_PATH"
 
-TRAINING_DATA_PATH = API_DIR / "training_data.csv"
+DEFAULT_MODEL_PATH = API_DIR / "best_model.pkl"
+
+DEFAULT_TRAINING_DATA_PATH = API_DIR / "training_data.csv"
+
+
+def _resolve_path(env_var: str, default_path: Path) -> Path:
+    """Return the path configured in ``env_var``, else ``default_path``.
+
+    Called once at import time, before the model is loaded, so that a
+    test process can fully redirect this module's file access.
+    """
+
+    configured_path = os.environ.get(env_var, "").strip()
+
+    if not configured_path:
+        return default_path
+
+    return Path(configured_path).expanduser().resolve()
+
+
+MODEL_PATH = _resolve_path(
+    MODEL_PATH_ENV_VAR,
+    DEFAULT_MODEL_PATH,
+)
+
+TRAINING_DATA_PATH = _resolve_path(
+    TRAINING_DATA_PATH_ENV_VAR,
+    DEFAULT_TRAINING_DATA_PATH,
+)
 
 TARGET_COLUMN = "primary_enrollment"
 
@@ -139,35 +179,46 @@ retrain_lock = Lock()
 
 
 def get_model():
-    """Thread-safe read of the current in-memory model."""
+    """Thread-safe read of the current in-memory model reference.
+
+    ``model_lock`` is held only for the duration of the attribute read,
+    so the (potentially slow) use of the returned estimator happens
+    without blocking other requests.
+    """
 
     with model_lock:
         return model
 
 
 def set_model(new_model):
-    """Replace the in-memory model reference.
+    """Atomically replace the in-memory model reference.
 
-    Caller must already hold ``model_lock``.
+    Acquires ``model_lock`` itself. Callers must NOT already hold it -
+    ``threading.Lock`` is not reentrant, so acquiring it twice in the
+    same thread would deadlock.
     """
 
     global model
-    model = new_model
+
+    with model_lock:
+        model = new_model
 
 
-def get_model_path():
+def get_model_path() -> Path:
     """Return the model file path.
 
-    Tests override this to redirect writes to a temporary directory.
+    With no configuration this is ``API_DIR/best_model.pkl``. Tests
+    redirect it before import via ``APP_MODEL_PATH``.
     """
 
     return MODEL_PATH
 
 
-def get_training_data_path():
+def get_training_data_path() -> Path:
     """Return the training data file path.
 
-    Tests override this to redirect reads to a temporary copy.
+    With no configuration this is ``API_DIR/training_data.csv``. Tests
+    redirect it before import via ``APP_TRAINING_DATA_PATH``.
     """
 
     return TRAINING_DATA_PATH
