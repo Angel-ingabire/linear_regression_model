@@ -21,6 +21,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
+  final GlobalKey _resultKey = GlobalKey();
 
   int _currentStep = 0;
   String? _message;
@@ -217,6 +218,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
           _isLoading = false;
           _predictionResult = prediction;
         });
+        _scrollToResult();
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -224,6 +226,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
           _isLoading = false;
           _errorMessage = e.message;
         });
+        _scrollToResult();
       }
     } catch (_) {
       if (mounted) {
@@ -232,8 +235,30 @@ class _PredictionScreenState extends State<PredictionScreen> {
           _errorMessage =
               'An unexpected error occurred while contacting the prediction service.';
         });
+        _scrollToResult();
       }
     }
+  }
+
+  /// Scrolls the prediction result (or error) into view after an API response.
+  Future<void> _scrollToResult() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final context = _resultKey.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Widget _header() {
@@ -781,6 +806,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
   Widget _resultDisplay() {
     if (_isLoading) {
       return Container(
+        key: _resultKey,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFFF3F6FC),
@@ -814,6 +840,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
 
     if (_predictionResult != null) {
       return Container(
+        key: _resultKey,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFFE4F6F0),
@@ -866,6 +893,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
 
     if (_errorMessage != null) {
       return Container(
+        key: _resultKey,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFFFDECEA),
@@ -981,7 +1009,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
                 radius: const Radius.circular(10),
                 child: ListView(
                   controller: _scrollController,
-                  physics: const ClampingScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),

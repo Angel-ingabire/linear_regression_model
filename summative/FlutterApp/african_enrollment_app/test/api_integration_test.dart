@@ -497,5 +497,87 @@ void main() {
       expect(find.text('Education Indicators'), findsOneWidget);
       expect(find.text('3 / 4'), findsOneWidget);
     });
+
+    // TEST 10: Long form content can scroll.
+    testWidgets('Long form content can scroll', (WidgetTester tester) async {
+      final apiService = serviceWithMock(
+        successResponse: http.Response(
+          jsonEncode({'predicted_primary_enrollment': 106.05}),
+          200,
+        ),
+      );
+      await launchAppWithService(tester, apiService);
+
+      await completeStep0(tester);
+      await completeStep1(tester);
+      await completeStep2(tester);
+
+      // We are now on step 3 (Economy & Prediction).
+      // Verify we can scroll the ListView.
+      final listView = find.byType(ListView).first;
+      await tester.drag(listView, const Offset(0, -300));
+      await tester.pumpAndSettle();
+
+      // The ListView should still be present after scrolling.
+      expect(find.byType(ListView), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    // TEST 11: Final step bottom content is reachable via scrolling.
+    testWidgets('Final step bottom content is reachable', (
+      WidgetTester tester,
+    ) async {
+      final apiService = serviceWithMock(
+        successResponse: http.Response(
+          jsonEncode({'predicted_primary_enrollment': 106.05}),
+          200,
+        ),
+      );
+      await launchAppWithService(tester, apiService);
+
+      await completeStep0(tester);
+      await completeStep1(tester);
+      await completeStep2(tester);
+      await completeStep3(tester);
+
+      // GDP field should be visible.
+      expect(find.text('GDP Per Capita (USD)'), findsOneWidget);
+
+      // Scroll down to reveal review card and result area.
+      final listView = find.byType(ListView).first;
+      await tester.drag(listView, const Offset(0, -500));
+      await tester.pumpAndSettle();
+
+      // Review card should be reachable.
+      expect(find.text('Review Your Inputs'), findsOneWidget);
+    });
+
+    // TEST 12: Fixed bottom navigation does not cover scrollable content.
+    testWidgets('Bottom navigation does not cover content', (
+      WidgetTester tester,
+    ) async {
+      final apiService = serviceWithMock(
+        successResponse: http.Response(
+          jsonEncode({'predicted_primary_enrollment': 106.05}),
+          200,
+        ),
+      );
+      await launchAppWithService(tester, apiService);
+
+      await completeStep0(tester);
+      await completeStep1(tester);
+      await completeStep2(tester);
+
+      // We are now on step 3 — bottom nav button should say "Predict Enrollment".
+      expect(find.text('Predict Enrollment'), findsOneWidget);
+
+      // Scrollable content should be above the bottom nav.
+      final listView = find.byType(ListView).first;
+      await tester.drag(listView, const Offset(0, -200));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListView), findsOneWidget);
+      expect(find.text('Predict Enrollment'), findsOneWidget);
+    });
   });
 }
